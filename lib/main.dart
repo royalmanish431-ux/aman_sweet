@@ -118,7 +118,9 @@ class _AmanSweetAppState extends State<AmanSweetApp> {
 
   Future<void> _requestPermissions() async {
     await [
-      Permission.location,
+      Permission.camera,
+      Permission.photos,
+      Permission.storage,
       Permission.microphone,
     ].request();
   }
@@ -149,7 +151,6 @@ class _AmanSweetAppState extends State<AmanSweetApp> {
           children: [
             WebViewWidget(controller: controller),
 
-            // Splash Screen Overlay
             if (isLoading && !isOffline)
               Container(
                 color: Colors.white,
@@ -174,7 +175,6 @@ class _AmanSweetAppState extends State<AmanSweetApp> {
                 ),
               ),
 
-            // Offline Screen
             if (isOffline)
               Container(
                 color: Colors.white,
