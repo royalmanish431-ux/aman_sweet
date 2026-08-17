@@ -28,6 +28,11 @@ jobs:
         run: |
           flutter create . --platforms=android --org com.amansweet.app
 
+      - name: Add Internet & Network Permissions to AndroidManifest
+        run: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          sed -i '/<manifest xmlns:android="http:\/\/schemas.android.com\/apk\/res\/android">/a \    <uses-permission android:name="android.permission.INTERNET"\/>\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"\/>' $MANIFEST
+
       - name: Install Dependencies
         run: flutter pub get
 
