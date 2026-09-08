@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart'; // <-- Yeh package zaroori hai whatsapp kholne ke liye
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 
@@ -36,6 +37,22 @@ class _AmanSweetWebViewState extends State<AmanSweetWebView> {
 
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          // 👇 Yahan WhatsApp ya external links ko handle karne ka code hai 👇
+          onNavigationRequest: (NavigationRequest request) async {
+            if (request.url.startsWith('whatsapp://') || 
+                request.url.contains('api.whatsapp.com')) {
+              final Uri uri = Uri.parse(request.url);
+              if (await canLaunchUrl(uri)) {
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              }
+              return NavigationDecision.prevent; // WebView mein khulne se rokein
+            }
+            return NavigationDecision.navigate;
+          },
+        ),
+      )
       ..loadRequest(Uri.parse('https://5aman.netlify.app/'));
 
     // Android par file/photo upload enable karne ke liye
