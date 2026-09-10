@@ -32,7 +32,7 @@ class _AmanSweetAppState extends State<AmanSweetApp> {
   // Selected image ka local path store karne ke liye
   String? _selectedImagePath;
 
-  final String targetUrl = 'https://5aman.netlify.app/';
+  final String targetUrl = 'https://aman-restaurant.vercel.app/';
 
   @override
   void initState() {
