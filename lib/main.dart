@@ -1,13 +1,11 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:image_picker/image_picker.dart';
 
 void main() {
   runApp(const MaterialApp(
@@ -28,11 +26,9 @@ class _AmanSweetAppState extends State<AmanSweetApp> {
   bool isOffline = false;
   bool isLoading = true;
   late StreamSubscription<List<ConnectivityResult>> _connectivitySubscription;
+  final ImagePicker _picker = ImagePicker();
   
-  // Selected image ka local path store karne ke liye
-  String? _selectedImagePath;
-
-  final String targetUrl = 'https://aman-restaurant.vercel.app/';
+  final String targetUrl = 'https://5aman.netlify.app/';
 
   @override
   void initState() {
@@ -42,28 +38,19 @@ class _AmanSweetAppState extends State<AmanSweetApp> {
     final WebViewController webController = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0xFFFFFFFF))
-      // JavaScript se Flutter ko call receive karne ke liye Channel
-      ..addJavaScriptChannel(
-        'FlutterShareChannel',
-        onMessageReceived: (JavaScriptMessage message) async {
-          final text = message.message;
-          if (_selectedImagePath != null) {
-            await Share.shareXFiles(
-              [XFile(_selectedImagePath!)],
-              text: text,
-            );
-          } else {
-            await Share.share(text);
-          }
-        },
-      )
       ..setNavigationDelegate(
         NavigationDelegate(
-          onPageStarted: (String url) => setState(() => isLoading = true),
+          onPageStarted: (String url) {
+            setState(() {
+              isLoading = true;
+            });
+          },
           onPageFinished: (String url) {
             setState(() {
               isLoading = false;
-              if (url.startsWith('http')) isOffline = false;
+              if (url.startsWith('http')) {
+                isOffline = false;
+              }
             });
           },
           onWebResourceError: (WebResourceError error) {
@@ -77,23 +64,15 @@ class _AmanSweetAppState extends State<AmanSweetApp> {
           onNavigationRequest: (NavigationRequest request) async {
             final String url = request.url;
 
-            // Agar photo attach hai aur whatsapp link trigger hua, toh native share se bhejenge
+            // WhatsApp, Call, Email handlers
             if (url.startsWith('whatsapp://') ||
+                url.startsWith('intent://') ||
                 url.startsWith('https://wa.me/') ||
-                url.contains('api.whatsapp.com')) {
+                url.startsWith('https://api.whatsapp.com/') ||
+                url.startsWith('tel:') ||
+                url.startsWith('mailto:') ||
+                url.startsWith('sms:')) {
               
-              if (_selectedImagePath != null) {
-                // URL se text nikal kar native share sheet open karega (image + text)
-                final uri = Uri.parse(url);
-                final text = uri.queryParameters['text'] ?? '';
-                await Share.shareXFiles(
-                  [XFile(_selectedImagePath!)],
-                  text: text,
-                );
-                return NavigationDecision.prevent;
-              }
-
-              // Agar photo select nahi ki hai, toh normal whatsapp kholega
               final Uri uri = Uri.parse(url);
               try {
                 if (await canLaunchUrl(uri)) {
@@ -101,10 +80,13 @@ class _AmanSweetAppState extends State<AmanSweetApp> {
                 } else {
                   await launchUrl(uri, mode: LaunchMode.externalNonBrowserApplication);
                 }
-              } catch (_) {}
+              } catch (e) {
+                try {
+                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+                } catch (_) {}
+              }
               return NavigationDecision.prevent;
             }
-
             return NavigationDecision.navigate;
           },
         ),
@@ -113,18 +95,19 @@ class _AmanSweetAppState extends State<AmanSweetApp> {
     if (webController.platform is AndroidWebViewController) {
       final androidController = webController.platform as AndroidWebViewController;
       
+      // Grant camera & microphone
       androidController.setOnPlatformPermissionRequest((request) {
         request.grant();
       });
 
-      // Photo pick hone par path save karega
+      // Gallery / Camera file chooser jab user 'Attach' par click kare
       androidController.setOnShowFileSelector((FileSelectorParams params) async {
-        final ImagePicker picker = ImagePicker();
-        final XFile? photo = await picker.pickImage(source: ImageSource.gallery);
-        if (photo != null) {
-          _selectedImagePath = photo.path;
-          return [Uri.file(photo.path).toString()];
-        }
+        try {
+          final XFile? photo = await _picker.pickImage(source: ImageSource.gallery);
+          if (photo != null) {
+            return [Uri.file(photo.path).toString()];
+          }
+        } catch (_) {}
         return [];
       });
     }
@@ -137,9 +120,13 @@ class _AmanSweetAppState extends State<AmanSweetApp> {
         .listen((List<ConnectivityResult> results) {
       final bool hasNoConnection = results.contains(ConnectivityResult.none);
       if (hasNoConnection) {
-        setState(() => isOffline = true);
+        setState(() {
+          isOffline = true;
+        });
       } else if (isOffline) {
-        setState(() => isOffline = false);
+        setState(() {
+          isOffline = false;
+        });
         controller.loadRequest(Uri.parse(targetUrl));
       }
     });
@@ -150,13 +137,16 @@ class _AmanSweetAppState extends State<AmanSweetApp> {
       Permission.camera,
       Permission.photos,
       Permission.storage,
+      Permission.microphone,
     ].request();
   }
 
   Future<void> _checkInitialConnectivity() async {
     final results = await Connectivity().checkConnectivity();
     if (results.contains(ConnectivityResult.none)) {
-      setState(() => isOffline = true);
+      setState(() {
+        isOffline = true;
+      });
     } else {
       controller.loadRequest(Uri.parse(targetUrl));
     }
@@ -177,14 +167,32 @@ class _AmanSweetAppState extends State<AmanSweetApp> {
           children: [
             WebViewWidget(controller: controller),
 
+            // Splash / Loading Overlay
             if (isLoading && !isOffline)
               Container(
                 color: Colors.white,
-                child: const Center(
-                  child: CircularProgressIndicator(color: Color(0xFFD97706)),
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: const [
+                      Icon(Icons.storefront_rounded, size: 80, color: Color(0xFFD97706)),
+                      SizedBox(height: 16),
+                      Text(
+                        'Aman SweetApp',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFFD97706),
+                        ),
+                      ),
+                      SizedBox(height: 24),
+                      CircularProgressIndicator(color: Color(0xFFD97706)),
+                    ],
+                  ),
                 ),
               ),
 
+            // Offline Screen
             if (isOffline)
               Container(
                 color: Colors.white,
