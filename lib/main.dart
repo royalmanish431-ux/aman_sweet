@@ -28,7 +28,7 @@ class _AmanSweetAppState extends State<AmanSweetApp> {
   late StreamSubscription<List<ConnectivityResult>> _connectivitySubscription;
   final ImagePicker _picker = ImagePicker();
   
-  final String targetUrl = 'https://amansweet.netlify.app/';
+  final String targetUrl = 'https://amansweet7.netlify.app/';
 
   @override
   void initState() {
